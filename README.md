@@ -15,6 +15,40 @@ An agentic memory system for LLM agents based on the Zettelkasten principle.
 - ✅ **Multi-Provider Support**: Ollama (local) or OpenRouter (cloud)
 - ✅ **Environment Variables**: Configuration via `.env` file
 
+## 🔄 Relationship to Original Implementation
+
+This implementation was developed independently based on the research paper ["A-Mem: Agentic Memory for LLM Agents"](https://arxiv.org/html/2502.12110v11). The original authors' production-ready system ([A-mem-sys](https://github.com/WujiangXu/A-mem-sys)) was discovered after this implementation was completed.
+
+**Key Differences:**
+
+This implementation focuses on **MCP Server integration** for IDE environments (Cursor, VSCode), providing:
+- Direct IDE integration via MCP protocol
+- **Explicit graph-based memory linking** using NetworkX (DiGraph) with typed edges, reasoning, and weights
+- File import with automatic chunking
+- Memory reset and management tools
+- Modern TUI benchmarking tool for Ollama model speed testing
+
+The original [A-mem-sys](https://github.com/WujiangXu/A-mem-sys) repository provides a **pip-installable Python library** with:
+- Multiple LLM backend support (OpenAI, Ollama, OpenRouter, SGLang)
+- Library-based integration for Python applications
+- Comprehensive API for programmatic usage
+- **Implicit linking** via ChromaDB embeddings (no explicit graph structure)
+
+**Technical Architecture Difference:**
+
+- **This implementation**: Dual-storage architecture
+  - ChromaDB for vector similarity search
+  - NetworkX DiGraph for explicit typed relationships (with `relation_type`, `reasoning`, `weight`)
+  - Graph traversal for finding directly connected memories
+  - Enables complex queries like "find all memories related to X through type Y"
+
+- **Original implementation**: Single-storage architecture
+  - ChromaDB as primary storage
+  - Implicit linking through embedding similarity
+  - Simpler architecture, less overhead
+
+Both implementations are valid approaches to the same research paper, serving different use cases and integration scenarios.
+
 ## 📋 Installation
 
 ### 1. Install Dependencies
@@ -176,11 +210,13 @@ python tests/test_code_structure.py
 
 ## 🧪 Benchmarking
 
-The project includes a modern TUI benchmark tool for Ollama models:
+The project includes a modern TUI benchmark tool for testing Ollama model speed and performance:
 
 ```bash
 python ollama_benchmark.py
 ```
+
+This tool measures model speed metrics (tokens/sec, latency, first token time) to help you choose the best Ollama model for your use case.
 
 See `BENCHMARK_README.md` for details.
 
@@ -205,40 +241,6 @@ This implementation is based on the research paper ["A-Mem: Agentic Memory for L
 - Original repositories:
   - [AgenticMemory](https://github.com/WujiangXu/AgenticMemory) - Benchmark Evaluation
   - [A-mem-sys](https://github.com/WujiangXu/A-mem-sys) - Production-ready System
-
-## 🔄 Relationship to Original Implementation
-
-This implementation was developed independently based on the research paper ["A-Mem: Agentic Memory for LLM Agents"](https://arxiv.org/html/2502.12110v11). The original authors' production-ready system ([A-mem-sys](https://github.com/WujiangXu/A-mem-sys)) was discovered after this implementation was completed.
-
-**Key Differences:**
-
-This implementation focuses on **MCP Server integration** for IDE environments (Cursor, VSCode), providing:
-- Direct IDE integration via MCP protocol
-- **Explicit graph-based memory linking** using NetworkX (DiGraph) with typed edges, reasoning, and weights
-- File import with automatic chunking
-- Memory reset and management tools
-- Modern TUI benchmarking tool
-
-The original [A-mem-sys](https://github.com/WujiangXu/A-mem-sys) repository provides a **pip-installable Python library** with:
-- Multiple LLM backend support (OpenAI, Ollama, OpenRouter, SGLang)
-- Library-based integration for Python applications
-- Comprehensive API for programmatic usage
-- **Implicit linking** via ChromaDB embeddings (no explicit graph structure)
-
-**Technical Architecture Difference:**
-
-- **This implementation**: Dual-storage architecture
-  - ChromaDB for vector similarity search
-  - NetworkX DiGraph for explicit typed relationships (with `relation_type`, `reasoning`, `weight`)
-  - Graph traversal for finding directly connected memories
-  - Enables complex queries like "find all memories related to X through type Y"
-
-- **Original implementation**: Single-storage architecture
-  - ChromaDB as primary storage
-  - Implicit linking through embedding similarity
-  - Simpler architecture, less overhead
-
-Both implementations are valid approaches to the same research paper, serving different use cases and integration scenarios.
 
 ---
 
