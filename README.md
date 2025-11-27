@@ -214,7 +214,7 @@ This implementation was developed independently based on the research paper ["A-
 
 This implementation focuses on **MCP Server integration** for IDE environments (Cursor, VSCode), providing:
 - Direct IDE integration via MCP protocol
-- Graph-based memory linking using NetworkX
+- **Explicit graph-based memory linking** using NetworkX (DiGraph) with typed edges, reasoning, and weights
 - File import with automatic chunking
 - Memory reset and management tools
 - Modern TUI benchmarking tool
@@ -223,6 +223,20 @@ The original [A-mem-sys](https://github.com/WujiangXu/A-mem-sys) repository prov
 - Multiple LLM backend support (OpenAI, Ollama, OpenRouter, SGLang)
 - Library-based integration for Python applications
 - Comprehensive API for programmatic usage
+- **Implicit linking** via ChromaDB embeddings (no explicit graph structure)
+
+**Technical Architecture Difference:**
+
+- **This implementation**: Dual-storage architecture
+  - ChromaDB for vector similarity search
+  - NetworkX DiGraph for explicit typed relationships (with `relation_type`, `reasoning`, `weight`)
+  - Graph traversal for finding directly connected memories
+  - Enables complex queries like "find all memories related to X through type Y"
+
+- **Original implementation**: Single-storage architecture
+  - ChromaDB as primary storage
+  - Implicit linking through embedding similarity
+  - Simpler architecture, less overhead
 
 Both implementations are valid approaches to the same research paper, serving different use cases and integration scenarios.
 
