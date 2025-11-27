@@ -122,9 +122,9 @@ python -m src.a_mem.main
 ### Cursor IDE
 
 Add the following configuration to your MCP configuration file:
-- Windows: `%APPDATA%\Cursor\User\globalStorage\saoudrizwan.claude-dev\settings\cline_mcp_settings.json`
-- macOS: `~/Library/Application Support/Cursor/User/globalStorage/saoudrizwan.claude-dev/settings/cline_mcp_settings.json`
-- Linux: `~/.config/Cursor/User/globalStorage/saoudrizwan.claude-dev/settings/cline_mcp_settings.json`
+- Windows: `%USERPROFILE%\.cursor\mcp.json` (or `C:\Users\<username>\.cursor\mcp.json`)
+- macOS: `~/.cursor/mcp.json`
+- Linux: `~/.cursor/mcp.json`
 
 ```json
 {
