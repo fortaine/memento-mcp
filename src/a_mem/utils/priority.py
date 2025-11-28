@@ -75,7 +75,7 @@ def log_event(event_type: str, data: Dict[str, Any]) -> None:
     EVENT_LOG_PATH.parent.mkdir(parents=True, exist_ok=True)
     
     entry = {
-        "timestamp": datetime.utcnow().isoformat(),
+        "timestamp": datetime.utcnow().isoformat() + "Z",  # Add 'Z' suffix for UTC
         "event": event_type,
         "data": data
     }

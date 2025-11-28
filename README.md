@@ -347,12 +347,69 @@ python tools/visualize_memory.py
 
 Then open your browser to `http://localhost:8050` to view the interactive dashboard.
 
+## 📈 Live Graph Status
+
+Quick status check for your memory system (similar to `git status`):
+
+```bash
+python tools/amem_stats.py --graph
+```
+
+**Output:**
+```
+🧠 A-MEM Graph Status
+==================================================
+📝 Notes:        47
+🔗 Relations:    89
+📊 Notes by Type:
+   🔴 rule           12
+   🔵 procedure      15
+   🟢 concept        20
+⚙️  Last Enzyme Run: 23min ago
+📡 Data Source: http
+==================================================
+```
+
+The tool automatically tries to fetch live data from the running MCP server (if HTTP server is enabled), otherwise reads from disk. Perfect for monitoring your memory system while coding!
+
 **Data Sync:** The visualizer loads graph data from `data/graph/knowledge_graph.json`. To update the data, run:
 ```bash
 python tools/extract_graph.py
 ```
 
 This script connects to the running MCP server via HTTP (if `TCP_SERVER_ENABLED=true` in `.env`) and saves the current graph state to disk.
+
+## 📈 Live Graph Status
+
+Quick status check for your memory system (similar to `git status`):
+
+```bash
+python tools/amem_stats.py --graph
+```
+
+**Output:**
+```
+🧠 A-MEM Graph Status
+==================================================
+📝 Notes:        47
+🔗 Relations:    89
+
+📊 Notes by Type:
+   🔴 rule           12
+   🔵 procedure      15
+   🟢 concept        20
+
+🔗 Relations by Type:
+   relates_to             65
+   supports               24
+
+⚙️  Last Enzyme Run: 23min ago
+
+📡 Data Source: http
+==================================================
+```
+
+The tool automatically tries to fetch live data from the running MCP server (if HTTP server is enabled), otherwise reads from disk. Perfect for monitoring your memory system while coding!
 
 **Features:**
 - **Graph Visualization**: Interactive network graph with node sizes based on priority and colors based on type

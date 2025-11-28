@@ -633,6 +633,16 @@ async def call_tool(name: str, arguments: dict[str, Any]) -> Sequence[TextConten
             
             results = await loop.run_in_executor(None, _run_enzymes)
             
+            # Log manual enzyme run (use the same log_event from priority module)
+            from .utils.priority import log_event
+            log_event("ENZYME_MANUAL_RUN", {
+                "results": results,
+                "prune_max_age_days": prune_max_age,
+                "prune_min_weight": prune_min_weight,
+                "suggest_threshold": suggest_threshold,
+                "suggest_max": suggest_max
+            })
+            
             # Save graph after enzymes
             await loop.run_in_executor(None, controller.storage.graph.save_snapshot)
             
