@@ -363,6 +363,9 @@ cat data/events.jsonl | jq .
 - `docs/TEST_REPORT.md` - Test Results
 - `docs/MCP_SERVER_TEST_REPORT.md` - MCP Server Integration Tests
 - `docs/EMBEDDING_DIMENSIONS.md` - Embedding Dimension Handling Guide
+- `docs/RESEARCHER_AGENT_DETAILED.md` - **Ausführliche Researcher Agent Dokumentation** (Code-Einbindung, Funktionen, Workflow)
+- `docs/MEMORY_ENZYMES_DETAILED.md` - **Ausführliche Memory Enzymes Dokumentation** (Code-Einbindung, Funktionen, Workflow)
+- `tools/RESEARCHER_README.md` - Researcher Agent Quick Reference
 ## 🧪 Tests
 
 ```bash
