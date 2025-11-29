@@ -521,12 +521,22 @@ cat data/events.jsonl | jq .
 
 ### 📊 Visual Diagrams
 
-Aktualisierte Mermaid-basierte SVG-Diagramme finden Sie im `docs/` Verzeichnis:
-- `a-mem-system-architecture.svg` - **System-Architektur Übersicht** (Multi-Backend Support, 14+ Enzyme Operations)
-- `a-mem-storage-architecture.svg` - **Storage-Architektur Detail** (NetworkX, RustworkX, FalkorDB Backends - FalkorDB experimental)
-- `a-mem-memory-enzymes.svg` - **Memory Enzymes Workflow** (14+ Maintenance Operations)
-- `a-mem-mcp-tools.svg` - **MCP Tools Übersicht** (15 Tools kategorisiert)
-- `a-mem-type-classification.svg` - **Type Classification System** (6 Types + Priority Calculation)
+Aktualisierte Mermaid-basierte SVG-Diagramme mit weißem Hintergrund und schwarzer Schrift:
+
+#### System-Architektur Übersicht
+![System Architecture](docs/a-mem-system-architecture.svg)
+
+#### Storage-Architektur Detail
+![Storage Architecture](docs/a-mem-storage-architecture.svg)
+
+#### Memory Enzymes Workflow
+![Memory Enzymes](docs/a-mem-memory-enzymes.svg)
+
+#### MCP Tools Übersicht
+![MCP Tools](docs/a-mem-mcp-tools.svg)
+
+#### Type Classification System
+![Type Classification](docs/a-mem-type-classification.svg)
 
 **Vollständige Mermaid-Diagramme** (inkl. Sequence Diagrams, Workflows) finden Sie in:
 - `docs/ARCHITECTURE_DIAGRAM.md` - Vollständige Architektur-Darstellung mit allen Diagrammen
