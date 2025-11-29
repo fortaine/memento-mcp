@@ -141,6 +141,19 @@ Copy `.env.example` to `.env` and adjust the values:
 cp .env.example .env
 ```
 
+**Configuration Strategy (Hybrid Approach):**
+
+A-MEM uses a **hybrid configuration system** for maximum flexibility:
+
+- **`.env` file**: Base configuration (default settings for all instances)
+- **MCP `env` block**: Per-instance overrides (allows customization without modifying `.env`)
+- **Priority**: MCP `env` block values override `.env` file values
+
+This allows you to:
+- Keep default settings in `.env` for all instances
+- Override specific settings per MCP instance (e.g., different LLM models for different projects)
+- Share the same `.env` across multiple MCP configurations
+
 **Configuration:**
 
 - **LLM_PROVIDER**: `"ollama"` (local) or `"openrouter"` (cloud)
@@ -281,6 +294,8 @@ python mcp_server.py
 
 2. Add the following configuration:
 
+**Basic Configuration (uses `.env` file):**
+
 ```json
 {
   "mcpServers": {
@@ -290,11 +305,41 @@ python mcp_server.py
         "-m",
         "src.a_mem.main"
       ],
-      "cwd": "/path/to/a-mem-mcp-server"
+      "cwd": "C:\\Users\\tobs\\Downloads\\a-mem_-agentic-memory-system\\a-mem_-agentic-memory-system"
     }
   }
 }
 ```
+
+**Advanced Configuration (with environment overrides):**
+
+You can override `.env` settings directly in the MCP config using the `env` block. This allows per-instance customization without modifying the `.env` file:
+
+```json
+{
+  "mcpServers": {
+    "a-mem": {
+      "command": "python",
+      "args": [
+        "-m",
+        "src.a_mem.main"
+      ],
+      "cwd": "C:\\Users\\tobs\\Downloads\\a-mem_-agentic-memory-system\\a-mem_-agentic-memory-system",
+      "env": {
+        "LLM_PROVIDER": "ollama",
+        "OLLAMA_LLM_MODEL": "qwen3:4b",
+        "RESEARCHER_ENABLED": "true",
+        "RESEARCHER_CONFIDENCE_THRESHOLD": "0.5"
+      }
+    }
+  }
+}
+```
+
+**Configuration Strategy:**
+- **`.env` file**: Default configuration (loaded automatically)
+- **`env` block**: Overrides specific settings per MCP instance
+- **Priority**: `env` block values override `.env` file values
 
 **Important:** Adjust `cwd` to the absolute path to your project directory!
 
@@ -310,6 +355,8 @@ python mcp_server.py
 
 3. Add the MCP Server configuration:
 
+**Basic Configuration (uses `.env` file):**
+
 ```json
 {
   "mcp.servers": {
@@ -317,6 +364,25 @@ python mcp_server.py
       "command": "python",
       "args": ["-m", "src.a_mem.main"],
       "cwd": "/path/to/a-mem-mcp-server"
+    }
+  }
+}
+```
+
+**Advanced Configuration (with environment overrides):**
+
+```json
+{
+  "mcp.servers": {
+    "a-mem": {
+      "command": "python",
+      "args": ["-m", "src.a_mem.main"],
+      "cwd": "/path/to/a-mem-mcp-server",
+      "env": {
+        "LLM_PROVIDER": "ollama",
+        "OLLAMA_LLM_MODEL": "qwen3:4b",
+        "RESEARCHER_ENABLED": "true"
+      }
     }
   }
 }
@@ -330,11 +396,16 @@ python mcp_server.py
     "a-mem": {
       "command": "python",
       "args": ["-m", "src.a_mem.main"],
-      "cwd": "${workspaceFolder}"
+      "cwd": "${workspaceFolder}",
+      "env": {
+        "LLM_PROVIDER": "ollama"
+      }
     }
   }
 }
 ```
+
+**Note:** The `env` block allows you to override `.env` settings per-instance without modifying the base configuration file.
 
 #### Usage in IDE
 
