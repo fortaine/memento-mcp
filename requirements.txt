@@ -8,6 +8,9 @@ pydantic>=2.0.0
 networkx>=3.0
 chromadb>=0.4.0
 
+# Cross-Platform File Locking (Windows support)
+portalocker>=2.0.0
+
 # HTTP Requests für Ollama
 requests>=2.31.0
 

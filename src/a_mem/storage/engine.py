@@ -39,14 +39,22 @@ def _write_log(message: str):
 
 # --- Cross-Platform Locking ---
 try:
+    # 1. Versuch POSIX fcntl (Linux/macOS)
     import fcntl
     def lock_file(f): fcntl.flock(f, fcntl.LOCK_EX)
     def unlock_file(f): fcntl.flock(f, fcntl.LOCK_UN)
 except ImportError:
-    # Windows Fallback (Simple No-Op or use portalocker if installed)
-    # For production on Windows, 'pip install portalocker' is recommended
-    def lock_file(f): pass 
-    def unlock_file(f): pass
+    try:
+        # 2. Versuch portalocker (Windows/Cross-Platform)
+        import portalocker
+        def lock_file(f): portalocker.lock(f, portalocker.LOCK_EX)
+        def unlock_file(f): portalocker.unlock(f)
+    except ImportError:
+        # 3. Letzter Fallback (Kein echtes Locking)
+        def lock_file(f): 
+            print("WARNING: No file locking available (Install 'portalocker' for Windows support).", file=sys.stderr)
+            pass
+        def unlock_file(f): pass
 
 class GraphStore:
     def __init__(self):
