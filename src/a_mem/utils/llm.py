@@ -5,6 +5,7 @@ Supports Ollama (local) and OpenRouter (cloud) for LLM and embeddings.
 """
 
 import json
+import sys
 import requests
 from typing import List, Tuple, Dict, Any, Optional
 from ..models.note import AtomicNote, NoteRelation
