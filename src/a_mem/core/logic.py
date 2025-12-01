@@ -142,6 +142,27 @@ class MemoryController:
                         "relation_type": relation.relation_type,
                         "reasoning": relation.reasoning
                     })
+                    
+                    # Bidirektionale Linking: Prüfe auch Rückrichtung (wenn sinnvoll)
+                    # Prüfe ob bereits Rückrichtung existiert
+                    if not self.storage.graph.has_edge(c_id, new_note.id):
+                        # Prüfe bidirektionale Relation (candidate_note -> new_note)
+                        is_related_reverse, relation_reverse = await loop.run_in_executor(
+                            None, self.llm.check_link, candidate_note, new_note
+                        )
+                        
+                        if is_related_reverse and relation_reverse:
+                            log_debug(f"[LINK] Bidirectional linking {c_id} -> {new_note.id} ({relation_reverse.relation_type})")
+                            self.storage.graph.add_edge(relation_reverse)
+                            links_found += 1
+                            # Event Logging
+                            log_event("RELATION_CREATED", {
+                                "from": c_id,
+                                "to": new_note.id,
+                                "relation_type": relation_reverse.relation_type,
+                                "reasoning": relation_reverse.reasoning,
+                                "bidirectional": True
+                            })
             
             # 3. Memory Evolution (Paper Section 3.3)
             # Check if existing memories should be updated

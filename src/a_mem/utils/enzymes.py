@@ -2246,75 +2246,29 @@ def suggest_relations(
             if graph.graph.has_edge(a_id, b_id) or graph.graph.has_edge(b_id, a_id):
                 continue  # Bereits verbunden, Skip
             
-            # Bestimme ob einer der Nodes ein Dead-End ist
-            a_is_dead_end = a_id in dead_end_nodes
-            b_is_dead_end = b_id in dead_end_nodes
-            is_dead_end_pair = a_is_dead_end or b_is_dead_end
-            
-            # Pre-Filter: Kombinierte Strategie (Generische Tags ignorieren + Keywords priorisieren + Similarity-Prüfung)
-            # Generische Tags, die nicht als ausreichendes Signal gelten
-            generic_tags = {"reference", "documentation", "tool", "integration", "procedure", "concept"}
-            
+            # Pre-Filter: Wenn keine gemeinsamen Keywords/Tags → Skip
             common_keywords = set(note_a.keywords) & set(note_b.keywords)
             common_tags = set(note_a.tags) & set(note_b.tags)
             
-            # Filtere generische Tags heraus
-            meaningful_tags = common_tags - generic_tags
-            has_meaningful_tags = bool(meaningful_tags)
-            has_common_keywords = bool(common_keywords)
+            if not common_keywords and not common_tags:
+                continue  # Zu unterschiedlich, Skip
             
-            # Keywords haben höhere Priorität als Tags
-            has_strong_signal = has_common_keywords or has_meaningful_tags
-            has_weak_signal = bool(common_tags)  # Auch generische Tags zählen als schwaches Signal
-            
-            # Cosine Similarity berechnen (vor Pre-Filter für Dead-End Nodes)
+            # Cosine Similarity berechnen
             similarity = cosine_similarity(vectors[a_id], vectors[b_id])
-            
-            if not is_dead_end_pair:
-                # Normale Nodes: Pre-Filter wie bisher (Keywords oder meaningful Tags)
-                if not has_strong_signal:
-                    continue  # Zu unterschiedlich, Skip
-            else:
-                # Dead-End Nodes: Kombinierte Strategie
-                # 1. Starke Signale (Keywords oder meaningful Tags): Erlaube bei Similarity >= 0.46
-                # 2. Schwache Signale (nur generische Tags): Erlaube nur bei Similarity >= 0.60
-                # 3. Keine Signale: Erlaube nur bei Similarity >= 0.58
-                if has_strong_signal:
-                    # Starke Signale: Threshold ist bereits niedrig genug (0.46)
-                    pass  # Erlaube, wenn Similarity >= effective_threshold
-                elif has_weak_signal:
-                    # Nur generische Tags: Erfordere höhere Similarity
-                    if similarity < 0.60:
-                        continue  # Zu unterschiedlich trotz generischer Tags
-                else:
-                    # Keine Signale: Erlaube nur bei Similarity >= 0.58
-                    if similarity < 0.58:
-                        continue  # Zu unterschiedlich, auch für Dead-End Nodes
             
             # Dynamischer Threshold für Dead-End Nodes (niedriger = leichter verlinkbar)
             effective_threshold = threshold
-            if is_dead_end_pair:
-                # Für Dead-End Nodes: Weiter gesenkter Threshold (0.75 -> 0.55)
-                # Gesenkt von 0.48 auf 0.46 für mehr Suggestions
-                effective_threshold = max(0.46, threshold - 0.20)
+            if a_id in dead_end_nodes or b_id in dead_end_nodes:
+                # Reduziere Threshold um 0.10 für Dead-End Nodes (z.B. 0.75 -> 0.65)
+                effective_threshold = max(0.5, threshold - 0.10)
             
             if similarity >= effective_threshold:
                 # Bonus für Dead-End Nodes: Erhöhe Similarity-Score leicht
                 similarity_boost = 0.0
-                if is_dead_end_pair:
+                if a_id in dead_end_nodes or b_id in dead_end_nodes:
                     similarity_boost = 0.05  # +5% Boost für Dead-End Nodes
                 
-                # Für Dead-End Nodes: Priorisiere Out-Connections (Dead-End -> andere Node)
-                # Stelle sicher, dass Dead-End Node als Source verwendet wird
-                if a_is_dead_end and not b_is_dead_end:
-                    # a ist Dead-End, b nicht -> a -> b (Out-Connection)
-                    suggestions.append((a_id, b_id, min(1.0, similarity + similarity_boost)))
-                elif b_is_dead_end and not a_is_dead_end:
-                    # b ist Dead-End, a nicht -> b -> a (Out-Connection)
-                    suggestions.append((b_id, a_id, min(1.0, similarity + similarity_boost)))
-                else:
-                    # Beide Dead-End oder beide normal -> bidirektional
-                    suggestions.append((a_id, b_id, min(1.0, similarity + similarity_boost)))
+                suggestions.append((a_id, b_id, min(1.0, similarity + similarity_boost)))
     
     # Sortiere nach Similarity (höchste zuerst)
     suggestions.sort(key=lambda x: x[2], reverse=True)
@@ -3571,4 +3525,3 @@ def run_memory_enzymes(
         results["dead_end_nodes"] = dead_end_results["dead_end_details"]
     
     return results
-
