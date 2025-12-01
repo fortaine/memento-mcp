@@ -2182,9 +2182,11 @@ def suggest_relations(
 ) -> List[Tuple[str, str, float]]:
     """
     Schlägt neue Beziehungen zwischen Notes vor basierend auf semantischer Ähnlichkeit.
+    Priorisiert Dead-End Nodes (Nodes mit eingehenden, aber keinen ausgehenden Edges).
     
     Args:
         notes: Dict von note_id -> AtomicNote
+        graph: GraphStore Instanz
         llm_service: LLMService für Embedding-Berechnung
         threshold: Minimale Similarity (default: 0.75)
         max_suggestions: Maximale Anzahl Vorschläge (default: 10)
@@ -2198,20 +2200,44 @@ def suggest_relations(
     suggestions = []
     note_ids = list(notes.keys())
     
-    # Embeddings einmal berechnen
+    # 1. Identifiziere Dead-End Nodes (Nodes mit eingehenden, aber keinen ausgehenden Edges)
+    dead_end_nodes = set()
+    for node_id in note_ids:
+        if node_id not in graph.graph.nodes:
+            continue
+        
+        # Zähle eingehende und ausgehende Edges manuell
+        incoming_count = 0
+        outgoing_count = 0
+        
+        # Prüfe alle Edges im Graph
+        for source, target in graph.graph.edges():
+            if target == node_id:
+                incoming_count += 1
+            if source == node_id:
+                outgoing_count += 1
+        
+        # Dead-End: Hat eingehende, aber keine ausgehenden Edges
+        if incoming_count > 0 and outgoing_count == 0:
+            dead_end_nodes.add(node_id)
+    
+    # 2. Embeddings einmal berechnen
     vectors = {}
     for note_id, note in notes.items():
         text = f"{note.content} {note.contextual_summary} {' '.join(note.keywords)}"
         embedding = llm_service.get_embedding(text)
         vectors[note_id] = embedding
     
-    # Paarweiser Vergleich (nur wenn nicht bereits verbunden)
-    for i in range(len(note_ids)):
-        for j in range(i + 1, len(note_ids)):
+    # 3. Paarweiser Vergleich mit Dead-End Priorisierung
+    # Sortiere Note-IDs: Dead-End Nodes zuerst
+    note_ids_sorted = sorted(note_ids, key=lambda nid: (nid not in dead_end_nodes, nid))
+    
+    for i in range(len(note_ids_sorted)):
+        for j in range(i + 1, len(note_ids_sorted)):
             if len(suggestions) >= max_suggestions:
                 break
             
-            a_id, b_id = note_ids[i], note_ids[j]
+            a_id, b_id = note_ids_sorted[i], note_ids_sorted[j]
             
             note_a = notes[a_id]
             note_b = notes[b_id]
@@ -2220,18 +2246,75 @@ def suggest_relations(
             if graph.graph.has_edge(a_id, b_id) or graph.graph.has_edge(b_id, a_id):
                 continue  # Bereits verbunden, Skip
             
-            # Pre-Filter: Wenn keine gemeinsamen Keywords/Tags → Skip
+            # Bestimme ob einer der Nodes ein Dead-End ist
+            a_is_dead_end = a_id in dead_end_nodes
+            b_is_dead_end = b_id in dead_end_nodes
+            is_dead_end_pair = a_is_dead_end or b_is_dead_end
+            
+            # Pre-Filter: Kombinierte Strategie (Generische Tags ignorieren + Keywords priorisieren + Similarity-Prüfung)
+            # Generische Tags, die nicht als ausreichendes Signal gelten
+            generic_tags = {"reference", "documentation", "tool", "integration", "procedure", "concept"}
+            
             common_keywords = set(note_a.keywords) & set(note_b.keywords)
             common_tags = set(note_a.tags) & set(note_b.tags)
             
-            if not common_keywords and not common_tags:
-                continue  # Zu unterschiedlich, Skip
+            # Filtere generische Tags heraus
+            meaningful_tags = common_tags - generic_tags
+            has_meaningful_tags = bool(meaningful_tags)
+            has_common_keywords = bool(common_keywords)
             
-            # Cosine Similarity berechnen
+            # Keywords haben höhere Priorität als Tags
+            has_strong_signal = has_common_keywords or has_meaningful_tags
+            has_weak_signal = bool(common_tags)  # Auch generische Tags zählen als schwaches Signal
+            
+            # Cosine Similarity berechnen (vor Pre-Filter für Dead-End Nodes)
             similarity = cosine_similarity(vectors[a_id], vectors[b_id])
             
-            if similarity >= threshold:
-                suggestions.append((a_id, b_id, similarity))
+            if not is_dead_end_pair:
+                # Normale Nodes: Pre-Filter wie bisher (Keywords oder meaningful Tags)
+                if not has_strong_signal:
+                    continue  # Zu unterschiedlich, Skip
+            else:
+                # Dead-End Nodes: Kombinierte Strategie
+                # 1. Starke Signale (Keywords oder meaningful Tags): Erlaube bei Similarity >= 0.46
+                # 2. Schwache Signale (nur generische Tags): Erlaube nur bei Similarity >= 0.60
+                # 3. Keine Signale: Erlaube nur bei Similarity >= 0.58
+                if has_strong_signal:
+                    # Starke Signale: Threshold ist bereits niedrig genug (0.46)
+                    pass  # Erlaube, wenn Similarity >= effective_threshold
+                elif has_weak_signal:
+                    # Nur generische Tags: Erfordere höhere Similarity
+                    if similarity < 0.60:
+                        continue  # Zu unterschiedlich trotz generischer Tags
+                else:
+                    # Keine Signale: Erlaube nur bei Similarity >= 0.58
+                    if similarity < 0.58:
+                        continue  # Zu unterschiedlich, auch für Dead-End Nodes
+            
+            # Dynamischer Threshold für Dead-End Nodes (niedriger = leichter verlinkbar)
+            effective_threshold = threshold
+            if is_dead_end_pair:
+                # Für Dead-End Nodes: Weiter gesenkter Threshold (0.75 -> 0.55)
+                # Gesenkt von 0.48 auf 0.46 für mehr Suggestions
+                effective_threshold = max(0.46, threshold - 0.20)
+            
+            if similarity >= effective_threshold:
+                # Bonus für Dead-End Nodes: Erhöhe Similarity-Score leicht
+                similarity_boost = 0.0
+                if is_dead_end_pair:
+                    similarity_boost = 0.05  # +5% Boost für Dead-End Nodes
+                
+                # Für Dead-End Nodes: Priorisiere Out-Connections (Dead-End -> andere Node)
+                # Stelle sicher, dass Dead-End Node als Source verwendet wird
+                if a_is_dead_end and not b_is_dead_end:
+                    # a ist Dead-End, b nicht -> a -> b (Out-Connection)
+                    suggestions.append((a_id, b_id, min(1.0, similarity + similarity_boost)))
+                elif b_is_dead_end and not a_is_dead_end:
+                    # b ist Dead-End, a nicht -> b -> a (Out-Connection)
+                    suggestions.append((b_id, a_id, min(1.0, similarity + similarity_boost)))
+                else:
+                    # Beide Dead-End oder beide normal -> bidirektional
+                    suggestions.append((a_id, b_id, min(1.0, similarity + similarity_boost)))
     
     # Sortiere nach Similarity (höchste zuerst)
     suggestions.sort(key=lambda x: x[2], reverse=True)
