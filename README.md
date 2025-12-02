@@ -1,6 +1,6 @@
 # A-MEM: Agentic Memory System
 
-[![MCP Badge](https://lobehub.com/badge/mcp-full/tobs-code-a-mem-mcp-server)](https://lobehub.com/mcp/tobs-code-a-mem-mcp-server)
+[![MCP Badge](https://lobehub.com/badge/mcp/tobs-code-a-mem-mcp-server)](https://lobehub.com/mcp/tobs-code-a-mem-mcp-server)
 
 An agentic memory system for LLM agents based on the Zettelkasten principle.
 
