@@ -1,5 +1,7 @@
 # A-MEM: Agentic Memory System
 
+[![MCP Badge](https://lobehub.com/badge/mcp-full/tobs-code-a-mem-mcp-server)](https://lobehub.com/mcp/tobs-code-a-mem-mcp-server)
+
 An agentic memory system for LLM agents based on the Zettelkasten principle.
 
 > **Based on:** ["A-Mem: Agentic Memory for LLM Agents"](https://arxiv.org/html/2502.12110v11)  
