@@ -1498,7 +1498,7 @@ async def call_tool(name: str, arguments: dict[str, Any]) -> Sequence[TextConten
             text=json.dumps({"error": f"Unknown tool: {name}"}, indent=2)
         )]
 
-async def main():
+async def async_main():
     """Main function for the MCP Server."""
     # Initial save: Save graph to disk on startup so visualizer can access it
     loop = asyncio.get_running_loop()
@@ -1556,5 +1556,9 @@ async def main():
             # Stoppe Scheduler beim Shutdown
             controller.stop_enzyme_scheduler()
 
+def main():
+    """Entry point wrapper for the MCP Server."""
+    asyncio.run(async_main())
+
 if __name__ == "__main__":
-    asyncio.run(main())
+    main()
