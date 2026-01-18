@@ -10,11 +10,15 @@ from dotenv import load_dotenv
 load_dotenv()
 
 class Config:
-    # Paths - Use absolute path based on file location, not cwd
-    # This ensures the paths work regardless of where the script is called from
+    # Paths - Use MEMENTO_DATA_DIR env var for persistent storage
+    # Falls back to project root /data if not set (not recommended for uvx installs)
     _config_file = Path(__file__).resolve()
-    BASE_DIR = _config_file.parent.parent.parent  # Go up from src/a_mem/config.py to project root
-    DATA_DIR = BASE_DIR / "data"
+    _default_base = _config_file.parent.parent.parent  # Go up from src/a_mem/config.py to project root
+    
+    # Allow user to specify persistent data directory via env var
+    _data_dir_env = os.getenv("MEMENTO_DATA_DIR")
+    DATA_DIR = Path(_data_dir_env) if _data_dir_env else _default_base / "data"
+    
     CHROMA_DIR = DATA_DIR / "chroma"
     GRAPH_DIR = DATA_DIR / "graph"
     GRAPH_PATH = GRAPH_DIR / "knowledge_graph.json"
