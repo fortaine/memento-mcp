@@ -291,6 +291,126 @@ async def list_tools() -> list[Tool]:
                 },
                 "required": ["query"]
             }
+        ),
+        # =====================================================================
+        # COMPOUND LEARNING TOOLS (Ported from memento-letta-bridge V1)
+        # =====================================================================
+        Tool(
+            name="brief_task",
+            description="Load relevant context before starting a task. Searches memory for similar past work, known error patterns to avoid, and applicable skills/playbooks. Call this BEFORE starting any significant task.",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "task_description": {
+                        "type": "string",
+                        "description": "Description of the task you're about to start"
+                    },
+                    "include_errors": {
+                        "type": "boolean",
+                        "description": "Whether to include past error patterns (default: true)",
+                        "default": True
+                    },
+                    "include_skills": {
+                        "type": "boolean",
+                        "description": "Whether to include relevant skills/playbooks (default: true)",
+                        "default": True
+                    },
+                    "max_results": {
+                        "type": "integer",
+                        "description": "Maximum number of related memories to retrieve (default: 5)",
+                        "default": 5,
+                        "minimum": 1,
+                        "maximum": 20
+                    }
+                },
+                "required": ["task_description"]
+            }
+        ),
+        Tool(
+            name="debrief_task",
+            description="Record what happened after completing a task. Stores the outcome, what worked, what failed, and lessons learned. Enables learning from every interaction. Call this AFTER completing any significant task.",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "task_description": {
+                        "type": "string",
+                        "description": "What task you attempted"
+                    },
+                    "outcome": {
+                        "type": "string",
+                        "enum": ["success", "partial", "failure"],
+                        "description": "How did it go?"
+                    },
+                    "what_worked": {
+                        "type": "string",
+                        "description": "What approaches succeeded?"
+                    },
+                    "what_failed": {
+                        "type": "string",
+                        "description": "What didn't work and why?"
+                    },
+                    "lesson_learned": {
+                        "type": "string",
+                        "description": "Generalizable insight for future tasks"
+                    }
+                },
+                "required": ["task_description", "outcome"]
+            }
+        ),
+        Tool(
+            name="track_error",
+            description="Log an error with its solution and track pattern frequency. When an error type occurs 3+ times, suggests promoting to a skill. When it occurs 5+ times, suggests adding to permanent rules. Call this whenever something goes wrong during work.",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "error_type": {
+                        "type": "string",
+                        "description": "Category of error (e.g., 'import-error', 'type-mismatch', 'api-timeout')"
+                    },
+                    "error_description": {
+                        "type": "string",
+                        "description": "What went wrong"
+                    },
+                    "context": {
+                        "type": "string",
+                        "description": "Where/when the error occurred"
+                    },
+                    "solution": {
+                        "type": "string",
+                        "description": "How you fixed it (if resolved)"
+                    }
+                },
+                "required": ["error_type", "error_description"]
+            }
+        ),
+        Tool(
+            name="promote_pattern",
+            description="Elevate a recurring pattern to a skill or permanent rule. Creates a procedure note for skills, or a rule note for permanent rules. Call this when a pattern has proven itself (3+ occurrences recommended).",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "pattern_name": {
+                        "type": "string",
+                        "description": "Name for the pattern/skill"
+                    },
+                    "pattern_description": {
+                        "type": "string",
+                        "description": "What the pattern is and when to use it"
+                    },
+                    "evidence": {
+                        "type": "array",
+                        "items": {"type": "string"},
+                        "description": "List of note IDs or descriptions as evidence"
+                    },
+                    "target": {
+                        "type": "string",
+                        "enum": ["skill", "rule"],
+                        "description": "Where to promote: 'skill' (procedure note) or 'rule' (permanent rule note)",
+                        "default": "skill"
+                    }
+                },
+                "required": ["pattern_name", "pattern_description"]
+            }
         )
     ]
 
@@ -1003,6 +1123,370 @@ async def call_tool(name: str, arguments: dict[str, Any]) -> Sequence[TextConten
                 "query": query,
                 "error": str(e)
             })
+            return [TextContent(
+                type="text",
+                text=json.dumps({"error": str(e)}, indent=2)
+            )]
+    
+    # =========================================================================
+    # COMPOUND LEARNING TOOLS (Ported from memento-letta-bridge V1)
+    # =========================================================================
+    
+    elif name == "brief_task":
+        task_description = arguments.get("task_description", "")
+        include_errors = arguments.get("include_errors", True)
+        include_skills = arguments.get("include_skills", True)
+        max_results = int(arguments.get("max_results", 5))
+        
+        if not task_description:
+            return [TextContent(
+                type="text",
+                text=json.dumps({"error": "task_description is required"}, indent=2)
+            )]
+        
+        try:
+            from datetime import datetime
+            from .utils.priority import log_event
+            
+            sections = []
+            
+            # 1. Search for related past work
+            results = await controller.retrieve(task_description)
+            related_work = results[:max_results]
+            
+            if related_work:
+                sections.append("## 📋 Related Past Work")
+                for res in related_work:
+                    note = res.note
+                    score = res.score
+                    sections.append(f"- **[{note.type or 'note'}]** {note.contextual_summary[:200]}... (score: {score:.2f})")
+            
+            # 2. Search for error patterns if requested
+            if include_errors:
+                error_results = await controller.retrieve(f"error {task_description}")
+                errors = [r for r in error_results[:3] if "error" in (r.note.tags or []) or r.note.type == "reference"]
+                
+                if errors:
+                    sections.append("\n## ⚠️ Known Error Patterns (Avoid These)")
+                    for res in errors:
+                        note = res.note
+                        sections.append(f"- 🔴 {note.contextual_summary[:200]}...")
+            
+            # 3. Search for skills/playbooks if requested
+            if include_skills:
+                skill_results = await controller.retrieve(f"skill playbook procedure {task_description}")
+                skills = [r for r in skill_results[:3] if r.note.type in ("procedure", "rule")]
+                
+                if skills:
+                    sections.append("\n## 🛠️ Applicable Skills/Playbooks")
+                    for res in skills:
+                        note = res.note
+                        sections.append(f"- 📘 **{note.keywords[0] if note.keywords else 'Skill'}**: {note.contextual_summary[:200]}...")
+            
+            # Log the brief
+            log_event("BRIEF_TASK", {
+                "task": task_description[:100],
+                "related_count": len(related_work),
+                "errors_found": len(errors) if include_errors else 0,
+                "skills_found": len(skills) if include_skills else 0
+            })
+            
+            if not sections:
+                brief_content = f"## Brief for: {task_description}\n\nNo relevant context found. Starting fresh."
+            else:
+                brief_content = f"## Brief for: {task_description}\n\n" + "\n".join(sections)
+            
+            return [TextContent(
+                type="text",
+                text=json.dumps({
+                    "status": "success",
+                    "brief": brief_content,
+                    "stats": {
+                        "related_work": len(related_work),
+                        "errors": len(errors) if include_errors else 0,
+                        "skills": len(skills) if include_skills else 0
+                    }
+                }, indent=2, ensure_ascii=False)
+            )]
+        except Exception as e:
+            return [TextContent(
+                type="text",
+                text=json.dumps({"error": str(e)}, indent=2)
+            )]
+    
+    elif name == "debrief_task":
+        task_description = arguments.get("task_description", "")
+        outcome = arguments.get("outcome", "")
+        what_worked = arguments.get("what_worked", "")
+        what_failed = arguments.get("what_failed", "")
+        lesson_learned = arguments.get("lesson_learned", "")
+        
+        if not task_description or not outcome:
+            return [TextContent(
+                type="text",
+                text=json.dumps({"error": "task_description and outcome are required"}, indent=2)
+            )]
+        
+        try:
+            from datetime import datetime, timezone
+            from .utils.priority import log_event
+            
+            timestamp = datetime.now(timezone.utc).isoformat()
+            
+            # Build debrief content
+            content = f"""## Debrief: {task_description}
+
+**Outcome**: {outcome}
+**What Worked**: {what_worked or "N/A"}
+**What Failed**: {what_failed or "N/A"}
+**Lesson Learned**: {lesson_learned or "N/A"}
+**Timestamp**: {timestamp}
+"""
+            
+            # Create debrief note with proper classification
+            note_input = NoteInput(
+                content=content,
+                source="debrief",
+                contextual_summary=f"Debrief ({outcome}): {task_description[:100]}",
+                keywords=["debrief", outcome, task_description.split()[0] if task_description else "task"],
+                tags=["debrief", outcome],
+                type="reference"  # Debriefs are reference material
+            )
+            note_id = await controller.create_note(note_input)
+            
+            result_msg = f"✅ Debrief saved (ID: {note_id})"
+            
+            # If failure, also track as error
+            error_tracked = None
+            if outcome == "failure" and what_failed:
+                # Recursively call track_error via the handler
+                error_content = f"""## Error: task-failure
+
+**Description**: {what_failed}
+**Context**: {task_description}
+**Solution**: {lesson_learned or "Pending"}
+**Timestamp**: {timestamp}
+**Tags**: error, task-failure
+"""
+                error_input = NoteInput(
+                    content=error_content,
+                    source="debrief_error",
+                    contextual_summary=f"Error from failed task: {task_description[:80]}",
+                    keywords=["error", "task-failure", task_description.split()[0] if task_description else "task"],
+                    tags=["error", "task-failure"],
+                    type="reference"
+                )
+                error_id = await controller.create_note(error_input)
+                error_tracked = error_id
+                result_msg += f"\n🔴 Error also tracked (ID: {error_id})"
+            
+            # Log event
+            log_event("DEBRIEF_TASK", {
+                "task": task_description[:100],
+                "outcome": outcome,
+                "note_id": note_id,
+                "error_tracked": error_tracked
+            })
+            
+            return [TextContent(
+                type="text",
+                text=json.dumps({
+                    "status": "success",
+                    "message": result_msg,
+                    "note_id": note_id,
+                    "outcome": outcome,
+                    "error_tracked": error_tracked
+                }, indent=2, ensure_ascii=False)
+            )]
+        except Exception as e:
+            return [TextContent(
+                type="text",
+                text=json.dumps({"error": str(e)}, indent=2)
+            )]
+    
+    elif name == "track_error":
+        error_type = arguments.get("error_type", "")
+        error_description = arguments.get("error_description", "")
+        context = arguments.get("context", "")
+        solution = arguments.get("solution", "")
+        
+        if not error_type or not error_description:
+            return [TextContent(
+                type="text",
+                text=json.dumps({"error": "error_type and error_description are required"}, indent=2)
+            )]
+        
+        try:
+            from datetime import datetime, timezone
+            from .utils.priority import log_event
+            
+            timestamp = datetime.now(timezone.utc).isoformat()
+            error_tag = error_type.lower().replace(" ", "-").replace("_", "-")
+            
+            # Count existing errors of this type
+            existing = await controller.retrieve(f"error {error_type}")
+            error_count = len([r for r in existing if "error" in (r.note.tags or [])]) + 1
+            
+            # Build error content
+            content = f"""## Error: {error_type}
+
+**Description**: {error_description}
+**Context**: {context or "N/A"}
+**Solution**: {solution or "Pending"}
+**Occurrence**: #{error_count}
+**Timestamp**: {timestamp}
+"""
+            
+            # Create error note
+            note_input = NoteInput(
+                content=content,
+                source="error_tracker",
+                contextual_summary=f"Error #{error_count}: {error_type} - {error_description[:80]}",
+                keywords=["error", error_tag, error_type],
+                tags=["error", error_tag],
+                type="reference"
+            )
+            note_id = await controller.create_note(note_input)
+            
+            result_msg = f"🔴 Error tracked: {error_type} (count: {error_count})"
+            promotion_suggestion = None
+            
+            # Promotion thresholds
+            SKILL_THRESHOLD = 3
+            RULE_THRESHOLD = 5
+            
+            if error_count >= RULE_THRESHOLD:
+                result_msg += f"\n\n⚠️ **PROMOTION SUGGESTED**: Error '{error_type}' occurred {error_count} times."
+                result_msg += "\nConsider adding as permanent rule using `promote_pattern` with target='rule'."
+                promotion_suggestion = "rule"
+            elif error_count >= SKILL_THRESHOLD:
+                result_msg += f"\n\n💡 **TIP**: Error '{error_type}' occurred {error_count} times."
+                result_msg += "\nConsider creating a skill/playbook using `promote_pattern` with target='skill'."
+                promotion_suggestion = "skill"
+            
+            # Log event
+            log_event("TRACK_ERROR", {
+                "error_type": error_type,
+                "count": error_count,
+                "note_id": note_id,
+                "promotion_suggestion": promotion_suggestion
+            })
+            
+            return [TextContent(
+                type="text",
+                text=json.dumps({
+                    "status": "success",
+                    "message": result_msg,
+                    "note_id": note_id,
+                    "error_type": error_type,
+                    "count": error_count,
+                    "promotion_suggestion": promotion_suggestion
+                }, indent=2, ensure_ascii=False)
+            )]
+        except Exception as e:
+            return [TextContent(
+                type="text",
+                text=json.dumps({"error": str(e)}, indent=2)
+            )]
+    
+    elif name == "promote_pattern":
+        pattern_name = arguments.get("pattern_name", "")
+        pattern_description = arguments.get("pattern_description", "")
+        evidence = arguments.get("evidence", [])
+        target = arguments.get("target", "skill")
+        
+        if not pattern_name or not pattern_description:
+            return [TextContent(
+                type="text",
+                text=json.dumps({"error": "pattern_name and pattern_description are required"}, indent=2)
+            )]
+        
+        try:
+            from datetime import datetime, timezone
+            from .utils.priority import log_event
+            
+            timestamp = datetime.now(timezone.utc).isoformat()
+            
+            if target == "skill":
+                # Create skill/playbook as procedure note
+                content = f"""# Skill: {pattern_name}
+
+## When to Use
+{pattern_description}
+
+## Steps
+1. [To be refined based on experience]
+
+## Evidence
+{chr(10).join(f"- {e}" for e in evidence) if evidence else "- Promoted from recurring pattern"}
+
+## Metadata
+- **Created**: {timestamp}
+- **Type**: playbook
+- **Status**: active
+"""
+                note_input = NoteInput(
+                    content=content,
+                    source="pattern_promotion",
+                    contextual_summary=f"Skill: {pattern_name} - {pattern_description[:100]}",
+                    keywords=["skill", "playbook", pattern_name.lower().replace(" ", "-")],
+                    tags=["skill", "promoted"],
+                    type="procedure"
+                )
+                note_id = await controller.create_note(note_input)
+                result_msg = f"✅ Created skill/playbook: {pattern_name} (ID: {note_id})"
+                
+            elif target == "rule":
+                # Create permanent rule note
+                content = f"""# Rule: {pattern_name}
+
+## Description
+{pattern_description}
+
+## Evidence
+{chr(10).join(f"- {e}" for e in evidence) if evidence else "- Promoted from recurring pattern (5+ occurrences)"}
+
+## Metadata
+- **Created**: {timestamp}
+- **Type**: permanent_rule
+- **Status**: active
+- **Priority**: high
+"""
+                note_input = NoteInput(
+                    content=content,
+                    source="pattern_promotion",
+                    contextual_summary=f"Rule: {pattern_name} - {pattern_description[:100]}",
+                    keywords=["rule", "permanent", pattern_name.lower().replace(" ", "-")],
+                    tags=["rule", "promoted", "permanent"],
+                    type="rule"
+                )
+                note_id = await controller.create_note(note_input)
+                result_msg = f"✅ Created permanent rule: {pattern_name} (ID: {note_id})"
+            else:
+                return [TextContent(
+                    type="text",
+                    text=json.dumps({"error": f"Unknown target: {target}. Use 'skill' or 'rule'."}, indent=2)
+                )]
+            
+            # Log event
+            log_event("PROMOTE_PATTERN", {
+                "pattern_name": pattern_name,
+                "target": target,
+                "note_id": note_id,
+                "evidence_count": len(evidence)
+            })
+            
+            return [TextContent(
+                type="text",
+                text=json.dumps({
+                    "status": "success",
+                    "message": result_msg,
+                    "note_id": note_id,
+                    "pattern_name": pattern_name,
+                    "target": target
+                }, indent=2, ensure_ascii=False)
+            )]
+        except Exception as e:
             return [TextContent(
                 type="text",
                 text=json.dumps({"error": str(e)}, indent=2)

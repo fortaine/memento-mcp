@@ -33,10 +33,25 @@ class Config:
     OPENROUTER_LLM_MODEL = os.getenv("OPENROUTER_LLM_MODEL", "openai/gpt-4o-mini")
     OPENROUTER_EMBEDDING_MODEL = os.getenv("OPENROUTER_EMBEDDING_MODEL", "openai/text-embedding-3-small")
     
+    # Google AI Studio Settings
+    # Prefer GOOGLE_API_KEY, fall back to GEMINI_API_KEY if empty or not set
+    _google_key = os.getenv("GOOGLE_API_KEY", "").strip()
+    _gemini_key = os.getenv("GEMINI_API_KEY", "").strip()
+    GOOGLE_API_KEY = _google_key if _google_key else _gemini_key
+    GOOGLE_LLM_MODEL = os.getenv("GOOGLE_LLM_MODEL", "gemini-3-flash-preview")
+    GOOGLE_EMBEDDING_MODEL = os.getenv("GOOGLE_EMBEDDING_MODEL", "gemini-embedding-001")
+    GOOGLE_EMBEDDING_DIMENSIONS = int(os.getenv("GOOGLE_EMBEDDING_DIMENSIONS", "768"))
+    # Thinking level: MINIMAL, LOW, MEDIUM, HIGH, or AUTO (uses thinking_budget=-1)
+    # LOW is recommended for metadata extraction; use HIGH for complex reasoning
+    GOOGLE_THINKING_LEVEL = os.getenv("GOOGLE_THINKING_LEVEL", "LOW").upper()
+    GOOGLE_INCLUDE_THOUGHTS = os.getenv("GOOGLE_INCLUDE_THOUGHTS", "false").lower() == "true"
+    
     # Model Settings (kompatibel mit altem Code)
     @property
     def LLM_MODEL(self):
         """Returns the current LLM model (provider-dependent)"""
+        if self.LLM_PROVIDER == "google":
+            return self.GOOGLE_LLM_MODEL
         if self.LLM_PROVIDER == "openrouter":
             return self.OPENROUTER_LLM_MODEL
         return self.OLLAMA_LLM_MODEL
@@ -44,6 +59,8 @@ class Config:
     @property
     def EMBEDDING_MODEL(self):
         """Returns the current embedding model (provider-dependent)"""
+        if self.LLM_PROVIDER == "google":
+            return self.GOOGLE_EMBEDDING_MODEL
         if self.LLM_PROVIDER == "openrouter":
             return self.OPENROUTER_EMBEDDING_MODEL
         return self.OLLAMA_EMBEDDING_MODEL
@@ -80,8 +97,8 @@ class Config:
     
     # Google Search API Settings (for web search)
     GOOGLE_SEARCH_ENABLED = os.getenv("GOOGLE_SEARCH_ENABLED", "true").lower() == "true"
-    GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY", "YOUR_KEY")
-    GOOGLE_SEARCH_ENGINE_ID = os.getenv("GOOGLE_SEARCH_ENGINE_ID", "c7bf0393f031a4691")
+    GOOGLE_SEARCH_API_KEY = os.getenv("GOOGLE_SEARCH_API_KEY", "")
+    GOOGLE_SEARCH_ENGINE_ID = os.getenv("GOOGLE_SEARCH_ENGINE_ID", "")
     
     # Cache file for amem_stats --diff
     AMEM_STATS_CACHE_FILE = DATA_DIR / "amem_stats_cache.json"

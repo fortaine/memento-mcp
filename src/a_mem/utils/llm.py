@@ -1,15 +1,36 @@
 """
 LLM Service: Embedding, Metadata Extraction, Link Checking, Memory Evolution
 
-Supports Ollama (local) and OpenRouter (cloud) for LLM and embeddings.
+Supports Ollama (local), OpenRouter (cloud), and Google AI Studio (cloud) for LLM and embeddings.
 """
 
 import json
 import sys
 import requests
-from typing import List, Tuple, Dict, Any, Optional
+import numpy as np
+from typing import List, Tuple, Dict, Any, Optional, Literal
 from ..models.note import AtomicNote, NoteRelation
 from ..config import settings
+
+# Lazy import for google-genai to avoid import errors if not installed
+_google_genai_client = None
+
+def _get_google_client():
+    """Lazy initialization of Google GenAI client."""
+    global _google_genai_client
+    if _google_genai_client is None:
+        try:
+            from google import genai
+            api_key = settings.GOOGLE_API_KEY
+            if not api_key:
+                raise ValueError("GOOGLE_API_KEY not set. Set GOOGLE_API_KEY or GEMINI_API_KEY environment variable.")
+            _google_genai_client = genai.Client(api_key=api_key)
+        except ImportError:
+            raise ImportError(
+                "google-genai package not installed. Run: pip install google-genai"
+            )
+    return _google_genai_client
+
 
 class LLMService:
     def __init__(self):
@@ -25,6 +46,14 @@ class LLMService:
         self.openrouter_base_url = settings.OPENROUTER_BASE_URL
         self.openrouter_llm_model = settings.OPENROUTER_LLM_MODEL
         self.openrouter_embedding_model = settings.OPENROUTER_EMBEDDING_MODEL
+        
+        # Google AI Studio Settings
+        self.google_api_key = settings.GOOGLE_API_KEY
+        self.google_llm_model = settings.GOOGLE_LLM_MODEL
+        self.google_embedding_model = settings.GOOGLE_EMBEDDING_MODEL
+        self.google_embedding_dimensions = settings.GOOGLE_EMBEDDING_DIMENSIONS
+        self.google_thinking_level = settings.GOOGLE_THINKING_LEVEL
+        self.google_include_thoughts = settings.GOOGLE_INCLUDE_THOUGHTS
         
         # Compatibility with old code
         self.llm_model = settings.LLM_MODEL
@@ -86,14 +115,88 @@ class LLMService:
             print(f"OpenRouter LLM Error: {e}", file=sys.stderr)
             raise
     
+    def _normalize_embedding(self, embedding: List[float]) -> List[float]:
+        """L2 normalize embedding for sub-3072 dimensions (as recommended by Google)."""
+        arr = np.array(embedding, dtype=np.float32)
+        norm = np.linalg.norm(arr)
+        if norm > 0:
+            arr = arr / norm
+        return arr.tolist()
+    
+    def _call_google(
+        self, 
+        prompt: str, 
+        system: Optional[str] = None,
+        thinking_level: Optional[Literal["MINIMAL", "LOW", "MEDIUM", "HIGH", "AUTO", "DISABLED"]] = None
+    ) -> str:
+        """Calls Google AI Studio LLM (Gemini) with thinking capabilities.
+        
+        Args:
+            prompt: The user prompt
+            system: Optional system instruction
+            thinking_level: Override default thinking level for this call.
+                           Use HIGH for complex reasoning, LOW for simple extraction.
+        """
+        try:
+            from google.genai import types
+            
+            client = _get_google_client()
+            
+            # Build the prompt with optional system instruction
+            if system:
+                full_prompt = f"{system}\n\n{prompt}"
+            else:
+                full_prompt = prompt
+            
+            # Use per-call override or fall back to default
+            level = (thinking_level or self.google_thinking_level).upper()
+            
+            # Build ThinkingConfig based on level
+            thinking_config = None
+            if level == "AUTO":
+                # Use automatic thinking budget
+                thinking_config = types.ThinkingConfig(
+                    thinking_budget=-1,
+                    include_thoughts=self.google_include_thoughts
+                )
+            elif level == "DISABLED":
+                # Disable thinking
+                thinking_config = types.ThinkingConfig(thinking_budget=0)
+            elif level in ("MINIMAL", "LOW", "MEDIUM", "HIGH"):
+                # Use thinking level enum
+                thinking_config = types.ThinkingConfig(
+                    thinking_level=getattr(types.ThinkingLevel, level),
+                    include_thoughts=self.google_include_thoughts
+                )
+            
+            # Build generation config with thinking
+            config = types.GenerateContentConfig(
+                thinking_config=thinking_config
+            ) if thinking_config else None
+            
+            response = client.models.generate_content(
+                model=self.google_llm_model,
+                contents=full_prompt,
+                config=config,
+            )
+            return response.text
+        except Exception as e:
+            print(f"Google AI LLM Error: {e}", file=sys.stderr)
+            raise
+    
     def _call_llm(self, prompt: str, system: Optional[str] = None) -> str:
         """Calls LLM (provider-dependent)."""
-        if self.provider == "openrouter":
+        if self.provider == "google":
+            try:
+                return self._call_google(prompt, system)
+            except Exception as e:
+                print(f"Google AI failed, falling back to Ollama: {e}", file=sys.stderr)
+                return self._call_ollama(prompt, system)
+        elif self.provider == "openrouter":
             try:
                 return self._call_openrouter(prompt, system)
             except Exception as e:
                 print(f"OpenRouter failed, falling back to Ollama: {e}", file=sys.stderr)
-                # Fallback to Ollama
                 return self._call_ollama(prompt, system)
         else:
             return self._call_ollama(prompt, system)
@@ -142,6 +245,38 @@ class LLMService:
         except Exception as e:
             print(f"OpenRouter Embedding Error: {e}", file=sys.stderr)
             raise
+    
+    def _get_embedding_google(self, text: str, task_type: str = "RETRIEVAL_DOCUMENT") -> List[float]:
+        """Calls Google AI Studio Embedding API (Gemini)."""
+        try:
+            from google.genai import types
+            
+            client = _get_google_client()
+            
+            # Configure embedding with optional dimensionality
+            config = types.EmbedContentConfig(
+                task_type=task_type,
+                output_dimensionality=self.google_embedding_dimensions,
+            )
+            
+            result = client.models.embed_content(
+                model=self.google_embedding_model,
+                contents=text,
+                config=config,
+            )
+            
+            # Extract embedding values
+            if result.embeddings and len(result.embeddings) > 0:
+                embedding = list(result.embeddings[0].values)
+                # L2 normalize for sub-3072 dimensions (as per Google's recommendation)
+                if self.google_embedding_dimensions < 3072:
+                    embedding = self._normalize_embedding(embedding)
+                return embedding
+            else:
+                raise ValueError("No embeddings returned from Google API")
+        except Exception as e:
+            print(f"Google Embedding Error: {e}", file=sys.stderr)
+            raise
 
     def _clean_json_response(self, content: str) -> Dict[str, Any]:
         """Entfernt Markdown Fences und parst JSON."""
@@ -166,12 +301,17 @@ class LLMService:
 
     def get_embedding(self, text: str) -> List[float]:
         """Calculates embedding (provider-dependent)."""
-        if self.provider == "openrouter":
+        if self.provider == "google":
+            try:
+                return self._get_embedding_google(text)
+            except Exception as e:
+                print(f"Google embedding failed, falling back to Ollama: {e}", file=sys.stderr)
+                return self._get_embedding_ollama(text)
+        elif self.provider == "openrouter":
             try:
                 return self._get_embedding_openrouter(text)
             except Exception as e:
                 print(f"OpenRouter embedding failed, falling back to Ollama: {e}", file=sys.stderr)
-                # Fallback to Ollama
                 return self._get_embedding_ollama(text)
         else:
             return self._get_embedding_ollama(text)
