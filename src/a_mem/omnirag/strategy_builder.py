@@ -35,7 +35,7 @@ class StrategyResult:
     natural_language: str
     strategy: Strategy
     entity_name: Optional[str] = None
-    algorithm: Literal["rule", "embedding", "llm"] = "rule"
+    algorithm: Literal["rule", "embedding", "llm", "override"] = "rule"
     confidence: float = 1.0
     
     def to_dict(self) -> dict:
@@ -203,7 +203,7 @@ class EmbeddingClassifier:
                 strategy_scores[strategy] = max(similarities) if similarities else 0.0
             
             # Find best strategy
-            best_strategy = max(strategy_scores, key=strategy_scores.get)
+            best_strategy = max(strategy_scores, key=lambda s: strategy_scores[s])
             best_score = strategy_scores[best_strategy]
             
             # Check confidence threshold

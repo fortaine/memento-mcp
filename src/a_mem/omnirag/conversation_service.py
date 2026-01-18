@@ -118,8 +118,9 @@ class Conversation:
     @classmethod
     def from_dict(cls, data: dict) -> "Conversation":
         messages = [Message.from_dict(m) for m in data.get("messages", [])]
+        session_id = data.get("session_id") or data.get("id") or str(uuid.uuid4())
         return cls(
-            session_id=data.get("session_id") or data.get("id"),
+            session_id=session_id,
             user_id=data.get("user_id"),
             messages=messages,
             context=data.get("context"),
@@ -321,6 +322,8 @@ class ConversationService:
         if not self._current_session:
             await self.start_session()
         
+        # Type assertion - session exists after start_session
+        assert self._current_session is not None
         msg = self._current_session.add_user_message(content)
         await self.store.save_conversation(self._current_session)
         return msg
@@ -355,7 +358,7 @@ class ConversationService:
         message_id: Optional[str] = None,
         feedback_text: Optional[str] = None,
         query: Optional[str] = None,
-        strategy_used: Optional[str] = None,
+        strategy_used: Optional[Literal["db", "vector", "graph"]] = None,
         notes_referenced: Optional[List[str]] = None
     ) -> Feedback:
         """Submit user feedback on a response."""

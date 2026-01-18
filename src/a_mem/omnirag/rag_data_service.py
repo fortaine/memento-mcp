@@ -249,10 +249,13 @@ class RAGDataService:
         - Embedding generation
         - ChromaDB similarity search
         - Priority scoring
-        """
-        results = await self.controller.retrieve(query, n_results=max_results)
         
-        for res in results:
+        Note: MemoryController.retrieve() returns up to 10 results by default.
+        We slice to max_results here.
+        """
+        results = await self.controller.retrieve(query)
+        
+        for res in results[:max_results]:
             note = res.note
             result.add_doc(RAGDocument(
                 id=note.id,
@@ -284,7 +287,7 @@ class RAGDataService:
         entity = result.strategy.entity_name
         
         # Find starting node(s) by entity name
-        start_nodes = []
+        start_nodes: List[str] = []
         
         if entity:
             # Search for nodes matching entity
@@ -305,7 +308,7 @@ class RAGDataService:
             start_nodes = [n[0] for n in degrees[:3]]
         
         # Traverse from start nodes
-        visited = set()
+        visited: set[str] = set()
         for start_id in start_nodes[:3]:  # Limit starting points
             self._traverse_graph(
                 graph=graph,

@@ -41,7 +41,7 @@ class CosmosDBConfig:
     distance_function: Literal["cosine", "euclidean", "dotproduct"] = "cosine"
     
     # Full-text Search Fields
-    fulltext_fields: list = None
+    fulltext_fields: Optional[list] = None
     
     # Partition Key
     partition_key: str = "/partitionKey"
