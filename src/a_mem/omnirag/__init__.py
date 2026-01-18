@@ -9,7 +9,13 @@ Based on CosmosAIGraph OmniRAG pattern:
 - JenaMigration: NetworkX → Apache Jena migration utilities
 """
 
-from .strategy_builder import StrategyBuilder, Strategy, StrategyResult
+from .strategy_builder import (
+    StrategyBuilder, 
+    Strategy, 
+    StrategyResult,
+    EmbeddingClassifier,
+    STRATEGY_EXEMPLARS,
+)
 from .rag_data_service import RAGDataService, RAGDocument, RAGDataResult
 from .cosmos_config import (
     CosmosDBConfig,
@@ -44,6 +50,8 @@ __all__ = [
     "StrategyBuilder",
     "Strategy",
     "StrategyResult",
+    "EmbeddingClassifier",
+    "STRATEGY_EXEMPLARS",
     
     # RAG Data Service
     "RAGDataService",
