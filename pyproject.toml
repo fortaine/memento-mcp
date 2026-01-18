@@ -44,7 +44,7 @@ Homepage = "https://github.com/fortaine/memento-mcp"
 Repository = "https://github.com/fortaine/memento-mcp"
 
 [project.scripts]
-memento-mcp = "src.a_mem.main:main"
+memento-mcp = "a_mem.main:main"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/a_mem"]
