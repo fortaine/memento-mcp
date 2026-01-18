@@ -1,0 +1,50 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "memento-mcp"
+version = "2.0.0"
+description = "A-MEM: Agentic Memory MCP Server - Zettelkasten-style memory system for AI agents with OmniRAG"
+readme = "README.md"
+license = "MIT"
+requires-python = ">=3.10"
+authors = [
+    { name = "fortaine" }
+]
+keywords = ["mcp", "memory", "ai", "agents", "zettelkasten", "omnirag", "rag"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+]
+
+dependencies = [
+    "mcp>=1.1.0",
+    "chromadb>=0.5.23",
+    "networkx>=3.4.2",
+    "numpy>=2.0.2",
+    "python-dotenv>=1.0.1",
+    "requests>=2.32.3",
+    "google-genai>=1.0.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.0.0",
+    "pytest-asyncio>=0.21.0",
+]
+
+[project.urls]
+Homepage = "https://github.com/fortaine/memento-mcp"
+Repository = "https://github.com/fortaine/memento-mcp"
+
+[project.scripts]
+memento-mcp = "src.a_mem.main:main"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/a_mem"]
